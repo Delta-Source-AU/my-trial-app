@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export default function Home() {
   const [board, setBoard] = useState<Array<string | null>>(Array(9).fill(null));
@@ -25,14 +25,80 @@ export default function Home() {
   const winner = calculateWinner(board);
   const isDraw = !winner && board.every((square) => square !== null);
 
+  // Minimax Algorithm to evaluate best computer move
+  const minimax = (
+    currentBoard: Array<string | null>,
+    depth: number,
+    isMaximizing: boolean
+  ): { score: number; index?: number } => {
+    const result = calculateWinner(currentBoard);
+    if (result === 'O') return { score: 10 - depth };
+    if (result === 'X') return { score: depth - 10 };
+    if (currentBoard.every((s) => s !== null)) return { score: 0 };
+
+    const emptyIndices = currentBoard
+      .map((val, idx) => (val === null ? idx : null))
+      .filter((val): val is number => val !== null);
+
+    if (isMaximizing) {
+      let bestScore = -Infinity;
+      let bestMove: number | undefined;
+
+      for (const index of emptyIndices) {
+        currentBoard[index] = 'O';
+        const score = minimax(currentBoard, depth + 1, false).score;
+        currentBoard[index] = null;
+
+        if (score > bestScore) {
+          bestScore = score;
+          bestMove = index;
+        }
+      }
+      return { score: bestScore, index: bestMove };
+    } else {
+      let bestScore = Infinity;
+      let bestMove: number | undefined;
+
+      for (const index of emptyIndices) {
+        currentBoard[index] = 'X';
+        const score = minimax(currentBoard, depth + 1, true).score;
+        currentBoard[index] = null;
+
+        if (score < bestScore) {
+          bestScore = score;
+          bestMove = index;
+        }
+      }
+      return { score: bestScore, index: bestMove };
+    }
+  };
+
+  // Computer Turn Effect
+  useEffect(() => {
+    if (!isXNext && !winner && !isDraw) {
+      // Slight delay to simulate natural play/thinking speed
+      const timer = setTimeout(() => {
+        const bestMove = minimax(board.slice(), 0, true).index;
+        if (bestMove !== undefined) {
+          const nextBoard = board.slice();
+          nextBoard[bestMove] = 'O';
+          setBoard(nextBoard);
+          setIsXNext(true);
+        }
+      }, 400);
+
+      return () => clearTimeout(timer);
+    }
+  }, [isXNext, board, winner, isDraw]);
+
   const handleClick = (index: number) => {
-    // Ignore click if square is filled or game is won
-    if (board[index] || winner) return;
+    // Ignore click if square is filled, game is won, or it's the computer's turn
+    if (board[index] || winner || !isXNext) return;
 
     const nextBoard = board.slice();
-    nextBoard[index] = isXNext ? 'X' : 'O';
+    nextBoard[index] = 'X';
     setBoard(nextBoard);
-    setIsXNext(!isXNext);
+    setIsXNext(false);
   };
 
   const resetGame = () => {
@@ -50,7 +116,9 @@ export default function Home() {
         {winner && <span className="text-green-400">Winner: {winner}! 🎉</span>}
         {isDraw && <span className="text-yellow-400">It's a Draw! 🤝</span>}
         {!winner && !isDraw && (
-          <span>Next Player: <strong className={isXNext ? 'text-indigo-400' : 'text-pink-400'}>{isXNext ? 'X' : 'O'}</strong></span>
+          <span>
+            Next Player: <strong className={isXNext ? 'text-indigo-400' : 'text-pink-400'}>{isXNext ? 'X (You)' : 'O (AI)'}</strong>
+          </span>
         )}
       </div>
 
@@ -60,7 +128,8 @@ export default function Home() {
           <button
             key={index}
             onClick={() => handleClick(index)}
-            className="w-20 h-20 text-3xl font-extrabold bg-slate-700 hover:bg-slate-600 rounded-lg flex items-center justify-center transition border border-slate-600"
+            disabled={!isXNext || !!square || !!winner}
+            className="w-20 h-20 text-3xl font-extrabold bg-slate-700 hover:bg-slate-600 rounded-lg flex items-center justify-center transition border border-slate-600 disabled:cursor-not-allowed"
           >
             <span className={square === 'X' ? 'text-indigo-400' : 'text-pink-400'}>
               {square}
